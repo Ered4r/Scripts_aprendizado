@@ -1,25 +1,48 @@
 import subprocess
+import json
+import sys
 
-def check_os(host):
+def snmp_vuln(host, port):
+    detected = False
+    details = ""
 
-    # Executa o comando snmpwalk e captura a saída
-    result = subprocess.run(
-        f"snmpwalk -c public -v1 {host} 2>/dev/null | awk '{{if ($0 ~ /Windows/) print $2}}' | cut -d ' ' -f 1",
-        shell=True, capture_output=True, text=True
-    )
+    try:
+        # Executa o comando e captura a saída
+        result = subprocess.run(
+            ["snmpwalk", "-c", "public", "-v1", f"{host}:{port}"],
+            capture_output=True, text=True, timeout=10
+        )
 
-    # Verifica se a saída está vazia
-    return bool(result.stdout.strip())
+        # Confere se a saída contém a string 'iso'
+        if "iso" in result.stdout:
+            detected = True
+            details = "SNMP vulneravel"
+        else:
+            details = "SNMP seguro"
+
+    except subprocess.TimeoutExpired:
+        details = f"Timeout ao tentar se conectar com o host: {host}."
+    except subprocess.CalledProcessError as e:
+        details = f"Erro ao executar o comando snmpwalk: {e}"
+    except FileNotFoundError:
+        details = "Comando snmpwalk não encontrado."
+
+    # Retorna o resultado como dicionário
+    result = {
+        'detected': detected,
+        'details': details,
+    }
+
+    return result
 
 if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) < 2:
-        print("Usage: python script.py <hostname_or_ip>")
+    if len(sys.argv) < 3:
+        print("Modo de uso: python smb.py <hostname_ou_ip> <porta>")
         sys.exit(1)
 
     host = sys.argv[1]
-    if check_os(host):
-        print("Vulnerable!")
-    else:
-        print("Seguro!")
+    port = sys.argv[2]
+    result = snmp_vuln(host, port)
+
+    # Exibe o resultado como JSON
+    print(json.dumps(result))
